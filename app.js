@@ -9,7 +9,10 @@ const querystring = require('querystring');
 const passport = require('passport')
 const GoogleStrategy = require( 'passport-google-oauth2' ).Strategy;
 const { type } = require('express/lib/response');
+const bodyParser = require('body-parser');
+// const User = require('./database/db');
 let recording = false
+let email = ""
 
 app.set('view engine','ejs');
 
@@ -17,6 +20,11 @@ app.use(express.static(path.join(__dirname , 'uploads')));
 const server = app.listen(4000,()=>{
     console.log("SERVER STARTED");
 })
+
+app.use(bodyParser.json()); 
+
+
+app.use(bodyParser.urlencoded());
 
 
 //---------------------------------------
@@ -39,7 +47,7 @@ passport.use(new GoogleStrategy({
     clientSecret: GOOGLE_CLIENT_SECRET,
     callbackURL: "http://localhost:4000/auth/google/callback",
     passReqToCallback   : true
-  }, (request, accessToken, refreshToken, profile, done) => {
+  }, (request, accessToken, rebody_parserfreshToken, profile, done) => {
     return done(null, profile);
   }));
 
@@ -63,18 +71,15 @@ let Clients = {}
 wss.on('connection', (ws,req) => {
     req.url = req.url.slice(2,req.url.length);
     const id = querystring.parse(req.url);
-    Clients[id.email] = ws;
-    console.log(id.email);
-    let obj = {
-        interval:'5',
-        take_interval:false
+    if(Clients[id.email]==null){
+        Clients[id.email] = []
+    Clients[id.email].push(ws);
     }
-    ws.on('message', function message(data) {
-        data = JSON.parse(data)
-        console.log('received: %s',data.status);
-        recording = data.status
-      });
-    ws.send(JSON.stringify(obj))
+    else{
+        Clients[id.email].push(ws);
+    }
+    console.log('email '+id.email);
+    
   });
 
 
@@ -86,7 +91,8 @@ const storage = multer.diskStorage({
         cb(null,'./uploads');
     },
     filename : function(req,file,cb){
-        cb(null,new Date().toISOString()+file.originalname)
+        let name  = new Date().toISOString()+file.originalname
+        cb(null,name)
     }
 });
 
@@ -97,7 +103,6 @@ app.post('/upload',upload.single('imageUpload'),(req,res)=>{
 })
 
 app.get('/',(req,res)=>{
-    console.log(req.useremail);
     res.render('index');
 })
 
@@ -108,11 +113,15 @@ app.get('/auth/google',
 
 app.get('/auth/google/callback',
     passport.authenticate( 'google', {
-        successRedirect: '/',
+        successRedirect: '/control',
         failureRedirect: '/'
 }));
 
 app.get('/images',(req,res)=>{
+    if(!req.isAuthenticated()){
+        res.redirect('/');
+    }
+    else{
     fs.readdir('./uploads', (error, files) => {
         var imgFiles = [];
         files.forEach(file => {
@@ -122,14 +131,75 @@ app.get('/images',(req,res)=>{
         }) 
         res.render('images', {imgFiles: imgFiles});   
     })
+}
 });
 
-app.post('/start',(req,res)=>{
-    console.log('hi');
-    res.status(201).send();
+app.get('/control',(req,res)=>{
+    
+    if(!req.isAuthenticated()){
+        email = ""
+        res.redirect('/');
+    }
+    else{
+        email = req.user.email;
+    console.log(recording)
+    res.render("control",{recording:recording});
+    }
 })
 
-app.post('/stop',(req,res)=>{
-    console.log('stop');
-    res.status(201).send();
+app.get('/logout',(req,res)=>{
+    req.logOut();
+    res.redirect('/')
+})
+
+app.get('/delete',(req,res)=>{
+    if(!req.isAuthenticated()){
+        res.redirect('/');
+    }
+    else{
+    let directory = __dirname+'/uploads/'
+    fs.readdir(directory, (err, files) => {
+        if (err) throw err;
+      
+        for (const file of files) {
+          fs.unlink(path.join(directory, file), err => {
+            if (err) throw err;
+          });
+        }
+      });
+    res.redirect('/images');
+    }
+})
+
+app.post('/toggle',(req,res)=>{
+    if(!req.isAuthenticated()){
+        res.redirect('/');
+    }
+    else{
+        let cond = false;
+        if(req.body.intervalActivate=='on'){
+            cond = true;
+        }
+        else{
+            cond = false;
+        }
+        let obj = {
+            interval:req.body.interval,
+            take_interval:cond
+        }
+        if(Clients[email]!=null){
+            Clients[email].forEach((socket)=>{
+                console.log("starting job")
+                socket.on('message', function message(data) {
+                    data = JSON.parse(data)
+                    recording = data.status
+                  });
+                socket.send(JSON.stringify(obj))
+            })
+        }
+        else{
+            console.log('no client');
+        }
+    res.redirect('/control')
+    }
 })

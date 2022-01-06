@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+    <style>
+        .red {
+          background-color: #FF0000;
+          color: white;
+        }
+        </style>
+<body>
+    <h1>Control</h1>
+    <a href='/logout'><h2>Logout</h2></a>
+    <a href='/images'><h2>Images</h2></a>
+    <form method="post" action="/toggle">
+        <input name="intervalActivate" type="checkbox" id="intervalActivate">
+        <label for="IntervalActivate">Interval activate</label>
+        <input name = "interval" type="number" id="interval"  value="5">
+        <%if(recording==false){%>
+        <button type='submit'>Toggle</button>
+        <%}else{%>
+            <button type='submit' class="red">Toggle</button>
+            <%}%>
+    </form>
+</body>
+
+</html>
+

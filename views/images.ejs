@@ -2,8 +2,16 @@
 <html>
 <body>
     <h1>Images</h1>
+    
+    <a href='/logout'><h2>Logout</h2></a>
+    <a href='/control'><h2>Control</h2></a>
+    <a href='/delete'>
+        <button>Delete All</button>
+    </a>
+    <br>
+    <br>
     <p1><%imgFiles.map((ele)=>{%>
-        <img height="400" width="200" src = <%=ele%>>
+        <img loading='lazy' height="400" width="250" src = <%=ele%>>
         
     <%})%></p1>
 
